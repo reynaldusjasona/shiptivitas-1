@@ -8,6 +8,7 @@ export default class Board extends React.Component {
   constructor(props) {
     super(props);
     const clients = this.getClients();
+    this.allClients = clients;
     this.state = {
       clients: {
         backlog: clients.filter(client => !client.status || client.status === 'backlog'),
@@ -20,6 +21,51 @@ export default class Board extends React.Component {
       inProgress: React.createRef(),
       complete: React.createRef(),
     }
+  }
+
+  componentDidMount() {
+    const containers = [
+      this.swimlanes.backlog.current,
+      this.swimlanes.inProgress.current,
+      this.swimlanes.complete.current,
+    ];
+    this.drake = Dragula(containers);
+
+    this.drake.on('drop', (el, target, source, sibling) => {
+      // Figure out which lane the card was dropped into.
+      let newStatus = 'backlog';
+      if (target === this.swimlanes.inProgress.current) {
+        newStatus = 'in-progress';
+      } else if (target === this.swimlanes.complete.current) {
+        newStatus = 'complete';
+      }
+
+      // Let React own the DOM again: undo Dragula's manual move,
+      // then re-render from state.
+      this.drake.cancel(true);
+
+      const id = el.getAttribute('data-id');
+      this.updateClientStatus(id, newStatus);
+    });
+  }
+
+  componentWillUnmount() {
+    if (this.drake) {
+      this.drake.destroy();
+    }
+  }
+
+  updateClientStatus(id, newStatus) {
+    this.allClients = this.allClients.map(client =>
+      client.id === id ? { ...client, status: newStatus } : client
+    );
+    this.setState({
+      clients: {
+        backlog: this.allClients.filter(client => !client.status || client.status === 'backlog'),
+        inProgress: this.allClients.filter(client => client.status && client.status === 'in-progress'),
+        complete: this.allClients.filter(client => client.status && client.status === 'complete'),
+      }
+    });
   }
   getClients() {
     return [
